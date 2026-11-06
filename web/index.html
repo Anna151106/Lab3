@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<title>AST Viewer</title>
+<script src="d3.min.js"></script>
+<script src="data.js"></script>
+<style>
+  body { margin: 0; font: 14px sans-serif; height: 100vh; display: flex; flex-direction: column; }
+  header { padding: 8px; border-bottom: 1px solid #ccc; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #tree { flex: 1; }
+  aside { width: 420px; overflow: auto; border-left: 1px solid #ccc; padding: 0 10px; }
+  pre { font: 12px monospace; background: #f4f4f4; padding: 8px; }
+  .node circle { fill: #fff; stroke: steelblue; stroke-width: 2px; }
+  .node.closed circle { fill: steelblue; }
+  .node text { font: 12px monospace; }
+  .link { fill: none; stroke: #bbb; }
+</style>
+</head>
+<body>
+<header>Програма: <select id="program"></select></header>
+<main>
+  <svg id="tree"></svg>
+  <aside>
+    <h3>C-код</h3><pre id="source"></pre>
+    <h3>Python</h3><pre id="python"></pre>
+    <h3>Вивід</h3><pre id="output"></pre>
+  </aside>
+</main>
+<script>
+const select = document.getElementById("program");
+select.innerHTML = programs.map((p, i) => `<option value="${i}">${p.file}</option>`).join("");
+select.onchange = () => show(programs[select.value]);
+
+const svg = d3.select("#tree");
+const g = svg.append("g");
+const zoom = d3.zoom().on("zoom", e => g.attr("transform", e.transform));
+svg.call(zoom);
+const layout = d3.tree().nodeSize([24, 200]);
+let root;
+
+function show(p) {
+  document.getElementById("source").textContent = p.source;
+  document.getElementById("python").textContent = p.python;
+  document.getElementById("output").textContent = p.output;
+  root = d3.hierarchy(p.ast);
+  root.descendants().forEach(d => { d._children = d.children; if (d.depth >= 3) d.children = null; });
+  svg.call(zoom.transform, d3.zoomIdentity.translate(40, svg.node().clientHeight / 2));
+  draw();
+}
+
+function draw() {
+  layout(root);
+  g.selectAll("*").remove();
+  g.selectAll(".link").data(root.links()).enter().append("path").attr("class", "link")
+    .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x));
+  const node = g.selectAll(".node").data(root.descendants()).enter().append("g")
+    .attr("class", d => d._children && !d.children ? "node closed" : "node")
+    .attr("transform", d => `translate(${d.y}, ${d.x})`)
+    .on("click", (e, d) => { d.children = d.children ? null : d._children; draw(); });
+  node.append("circle").attr("r", 5);
+  node.append("text").attr("x", 9).attr("dy", "0.32em").text(d => d.data.name);
+}
+
+show(programs[0]);
+</script>
+</body>
+</html>
